@@ -2,6 +2,7 @@ import socket
 
 
 ADDRESS = "localhost"
+BYTES_SIZE = 512
 REDIS_PORT = 6379
 PONG = "+PONG\r\n"
 
@@ -11,12 +12,14 @@ def main():
     client_socket, address = server_socket.accept()
     print(f"accepted connection from {address}")
     
-    with client_socket:
-        # Read data
-        data = client_socket.recv(1024)
+    while True:
+        request: bytes = client_socket.recv(BYTES_SIZE)
+        if not request:
+            break
 
-        # Write data back
-        client_socket.sendall(PONG.encode())
+        data: str = request.decode()
+        if "ping" in data.lower():
+            client_socket.sendall(PONG.encode())
 
     server_socket.close()
 
