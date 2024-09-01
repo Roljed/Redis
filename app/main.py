@@ -25,6 +25,11 @@ def read(client_socket):
         print(f"Received: {data}")
         if "ping" in data.lower():
             client_socket.sendall(PONG.encode())
+        elif "echo" in data.lower():
+            echo_response = data.split("\r\n")[-2]
+            content_len = len(echo_response)
+            response = f"${content_len}\r\n{echo_response}\r\n"
+            client_socket.sendall(response.encode())
     else:
         sel.unregister(client_socket)
         client_socket.close()
