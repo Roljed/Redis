@@ -5,7 +5,7 @@ import selectors
 ADDRESS = "localhost"
 BYTES_SIZE = 1024
 REDIS_PORT = 6379
-PONG = "+PONG\r\n"
+REDIS_RESPONSE_PONG = "+PONG\r\n"
 
 
 sel = selectors.DefaultSelector()
@@ -24,7 +24,7 @@ def read(client_socket):
         data: str = request.decode()
         print(f"Received: {data}")
         if "ping" in data.lower():
-            client_socket.sendall(PONG.encode())
+            client_socket.sendall(REDIS_RESPONSE_PONG.encode())
         elif "echo" in data.lower():
             echo_response = data.split("\r\n")[-2]
             content_len = len(echo_response)
