@@ -1,5 +1,7 @@
 import socket
 import selectors
+from typing import List
+
 
 
 ADDRESS = "localhost"
@@ -9,6 +11,14 @@ REDIS_RESPONSE_PONG = "+PONG\r\n"
 
 
 sel = selectors.DefaultSelector()
+
+
+def redis_command() -> List:
+    pass
+
+
+def redis_simple_string() -> str:
+    pass
 
 
 def accept(server_socket):
@@ -46,7 +56,7 @@ def main():
 
     while True:
         events = sel.select()
-        for key, mask in events:
+        for key, _ in events:
             callback = key.data
             callback(key.fileobj)
 
