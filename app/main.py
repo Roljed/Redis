@@ -43,21 +43,20 @@ class Redis():
         pass
 
 
-    def accept(self, server_socket):
+    def accept(self, server_socket) -> None:
         client_socket, address = server_socket.accept()
         print(f"Accepted connection from {address}")
         client_socket.setblocking(False)
         sel.register(client_socket, selectors.EVENT_READ, self.read)
 
 
-    def read(self, client_socket):
+    def read(self, client_socket) -> None:
         request: bytes = client_socket.recv(BYTES_SIZE)
         if request:
             data: str = request.decode()
             print(f"Received: {data}")
 
             self.parse_redis_command(data)
-            print(self.command)
             total_commands = len(self.command)
             main_command = self.command[0].upper()
             
@@ -71,17 +70,12 @@ class Redis():
             elif "SET" == main_command and total_commands > 2:
                 key = self.command[1]
                 value = self.command[2]
-                print(f"Key: {key}, Value: {value}")
                 self.hash_map[key] = value
-                print(f"Hash map: {self.hash_map}")
                 response = "+OK\r\n"
                 client_socket.sendall(response.encode())
             elif "GET" == main_command and total_commands > 1:
-                print(f"Hash map: {self.hash_map}")
                 key = self.command[1]
-                print(f"Key: {key}")
                 value = self.hash_map.get(key)
-                print(f"Value: {value}")
                 if not value:
                     value = "$-1\r\n"
                 response = f"${len(value)}\r\n{value}\r\n"
