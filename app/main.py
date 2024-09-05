@@ -39,18 +39,21 @@ class Redis():
         self.command = []
 
 
-    def redis_simple_string() -> str:
-        pass
+    def server_response(self, client_socket: socket, response: str):
+        content_len = len(response)
+        if not response.startswith("+"):
+            response = f"${content_len}\r\n{response}\r\n"
+        client_socket.sendall(response.encode())
 
 
-    def accept(self, server_socket) -> None:
+    def accept(self, server_socket: socket) -> None:
         client_socket, address = server_socket.accept()
         print(f"Accepted connection from {address}")
         client_socket.setblocking(False)
         sel.register(client_socket, selectors.EVENT_READ, self.read)
 
 
-    def read(self, client_socket) -> None:
+    def read(self, client_socket: socket) -> None:
         request: bytes = client_socket.recv(BYTES_SIZE)
         if request:
             data: str = request.decode()
@@ -64,22 +67,19 @@ class Redis():
                 client_socket.sendall(REDIS_RESPONSE_PONG.encode())
             elif "ECHO" == main_command and total_commands > 1:
                 echo_response = data.split("\r\n")[-2]
-                content_len = len(echo_response)
-                response = f"${content_len}\r\n{echo_response}\r\n"
-                client_socket.sendall(response.encode())
+                self.server_response(client_socket, echo_response)
             elif "SET" == main_command and total_commands > 2:
                 key = self.command[1]
                 value = self.command[2]
                 self.hash_map[key] = value
                 response = "+OK\r\n"
-                client_socket.sendall(response.encode())
+                self.server_response(client_socket, response)
             elif "GET" == main_command and total_commands > 1:
                 key = self.command[1]
                 value = self.hash_map.get(key)
                 if not value:
                     value = "$-1\r\n"
-                response = f"${len(value)}\r\n{value}\r\n"
-                client_socket.sendall(response.encode())
+                self.server_response(client_socket, value)
         else:
             sel.unregister(client_socket)
             client_socket.close()
