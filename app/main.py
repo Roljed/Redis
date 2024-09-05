@@ -1,5 +1,6 @@
 import socket
 import selectors
+from typing import List
 
 
 ADDRESS = "localhost"
@@ -11,28 +12,83 @@ REDIS_RESPONSE_PONG = "+PONG\r\n"
 sel = selectors.DefaultSelector()
 
 
-def accept(server_socket):
-    client_socket, address = server_socket.accept()
-    print(f"Accepted connection from {address}")
-    client_socket.setblocking(False)
-    sel.register(client_socket, selectors.EVENT_READ, read)
+class Redis():
+    def __init__(self) -> None:
+        self.command = []
+        self.hash_map = {}
+
+    def parse_redis_command(self, command: str) -> None:
+        """
+        Parses a RESP command from the client
+        """
+        command_lines = command.splitlines()
+        print(f"Command lines:\n{command_lines}")
+        data_type = command_lines[0]
+        if data_type.startswith("*"):
+            num_arg = int(command_lines[0][1:])
+            index = 1
+            command_parts = []
+            for _ in range(num_arg):
+                if command_lines[index].startswith("$"):
+                    length = int(command_lines[index][1:])
+                    index += 1
+                    command_parts.append(command_lines[index][:length])
+                    index += 1
+            self.command = command_parts
+            return
+        self.command = []
 
 
-def read(client_socket):
-    request: bytes = client_socket.recv(BYTES_SIZE)
-    if request:
-        data: str = request.decode()
-        print(f"Received: {data}")
-        if "ping" in data.lower():
-            client_socket.sendall(REDIS_RESPONSE_PONG.encode())
-        elif "echo" in data.lower():
-            echo_response = data.split("\r\n")[-2]
-            content_len = len(echo_response)
-            response = f"${content_len}\r\n{echo_response}\r\n"
-            client_socket.sendall(response.encode())
-    else:
-        sel.unregister(client_socket)
-        client_socket.close()
+    def redis_simple_string() -> str:
+        pass
+
+
+    def accept(self, server_socket):
+        client_socket, address = server_socket.accept()
+        print(f"Accepted connection from {address}")
+        client_socket.setblocking(False)
+        sel.register(client_socket, selectors.EVENT_READ, self.read)
+
+
+    def read(self, client_socket):
+        request: bytes = client_socket.recv(BYTES_SIZE)
+        if request:
+            data: str = request.decode()
+            print(f"Received: {data}")
+
+            self.parse_redis_command(data)
+            print(self.command)
+            total_commands = len(self.command)
+            main_command = self.command[0].upper()
+            
+            if "PING" == main_command:
+                client_socket.sendall(REDIS_RESPONSE_PONG.encode())
+            elif "ECHO" == main_command and total_commands > 1:
+                echo_response = data.split("\r\n")[-2]
+                content_len = len(echo_response)
+                response = f"${content_len}\r\n{echo_response}\r\n"
+                client_socket.sendall(response.encode())
+            elif "SET" == main_command and total_commands > 2:
+                key = self.command[1]
+                value = self.command[2]
+                print(f"Key: {key}, Value: {value}")
+                self.hash_map[key] = value
+                print(f"Hash map: {self.hash_map}")
+                response = "+OK\r\n"
+                client_socket.sendall(response.encode())
+            elif "GET" == main_command and total_commands > 1:
+                print(f"Hash map: {self.hash_map}")
+                key = self.command[1]
+                print(f"Key: {key}")
+                value = self.hash_map.get(key)
+                print(f"Value: {value}")
+                if not value:
+                    value = "$-1\r\n"
+                response = f"${len(value)}\r\n{value}\r\n"
+                client_socket.sendall(response.encode())
+        else:
+            sel.unregister(client_socket)
+            client_socket.close()
 
 
 def main():
@@ -40,13 +96,15 @@ def main():
     server_socket.listen()
     server_socket.setblocking(False)
 
-    sel.register(server_socket, selectors.EVENT_READ, accept)
+    redis = Redis()
+
+    sel.register(server_socket, selectors.EVENT_READ, redis.accept)
 
     print(f"Server is listening...")
 
     while True:
         events = sel.select()
-        for key, mask in events:
+        for key, _ in events:
             callback = key.data
             callback(key.fileobj)
 
