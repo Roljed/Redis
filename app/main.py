@@ -9,13 +9,27 @@ REDIS_PORT = 6379
 REDIS_RESPONSE_PONG = "+PONG\r\n"
 
 
-sel = selectors.DefaultSelector()
+
 
 
 class Redis():
     def __init__(self) -> None:
+        self.sel = None
         self.command = []
         self.hash_map = {}
+    
+    def server_up(self) -> selectors.DefaultSelector:
+        server_socket = socket.create_server((ADDRESS, REDIS_PORT), reuse_port=True)
+        server_socket.listen()
+        server_socket.setblocking(False)
+
+        self.sel = selectors.DefaultSelector()
+        self.sel.register(server_socket, selectors.EVENT_READ, self.accept)
+
+        print(f"Server is listening...")
+
+        return self.sel
+
 
     def parse_redis_command(self, command: str) -> None:
         """
@@ -50,7 +64,7 @@ class Redis():
         client_socket, address = server_socket.accept()
         print(f"Accepted connection from {address}")
         client_socket.setblocking(False)
-        sel.register(client_socket, selectors.EVENT_READ, self.read)
+        self.sel.register(client_socket, selectors.EVENT_READ, self.read)
 
 
     def read(self, client_socket: socket) -> None:
@@ -86,18 +100,11 @@ class Redis():
 
 
 def main():
-    server_socket = socket.create_server((ADDRESS, REDIS_PORT), reuse_port=True)
-    server_socket.listen()
-    server_socket.setblocking(False)
-
     redis = Redis()
-
-    sel.register(server_socket, selectors.EVENT_READ, redis.accept)
-
-    print(f"Server is listening...")
+    server_selector = redis.server_up()
 
     while True:
-        events = sel.select()
+        events = server_selector.select()
         for key, _ in events:
             callback = key.data
             callback(key.fileobj)
