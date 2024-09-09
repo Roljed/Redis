@@ -1,5 +1,6 @@
 import socket
 import selectors
+from datetime import datetime, timedelta
 from typing import List
 
 
@@ -53,7 +54,8 @@ class Redis():
         self.command = []
 
 
-    def server_response(self, client_socket: socket, response: str):
+    @staticmethod
+    def server_response(client_socket: socket, response: str):
         content_len = len(response)
         if not response.startswith("+"):
             response = f"${content_len}\r\n{response}\r\n"
@@ -85,13 +87,20 @@ class Redis():
             elif "SET" == main_command and total_commands > 2:
                 key = self.command[1]
                 value = self.command[2]
-                self.hash_map[key] = value
+                # Expiry key
+                if total_commands > 3 and "px" in self.command[3]:
+                    expiry = self.command[4]
+                    current_time = datetime.now()
+                    expiry_time = current_time + timedelta(seconds=int(expiry))
+                    self.hash_map[key] = (expiry_time, value)
+                self.hash_map[key] = (None, value)
                 response = "+OK\r\n"
                 self.server_response(client_socket, response)
             elif "GET" == main_command and total_commands > 1:
                 key = self.command[1]
-                value = self.hash_map.get(key)
-                if not value:
+                expiry, value = self.hash_map.get(key)
+                current_time = datetime.now()
+                if not value or (expiry and current_time > expiry):
                     value = "$-1\r\n"
                 self.server_response(client_socket, value)
         else:
